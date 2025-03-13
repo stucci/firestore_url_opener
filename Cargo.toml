@@ -13,3 +13,10 @@ tonic = "0.12.3"
 webbrowser = "1.0.4"
 url = "2.5.0"
 percent-encoding = "2.3.1"
+log = "0.4"
+env_logger = "0.10"
+dotenv = "0.15"
+temp-env = "0.3.6"
+
+[dev-dependencies]
+temp-env = "0.3.6"
