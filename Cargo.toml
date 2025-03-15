@@ -4,25 +4,13 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-firestore = { version = "0.39.3" }
-prost = "0.13.5"
-reqwest = { version = "0.12.14", features = ["json"] }
+firestore = { version = "0.44.1" }
 serde = { version = "1.0.219", features = ["derive"] }
-serde_json = "1.0.140"
 tokio = { version = "1.44.1", features = ["full"] }
-tonic = "0.12.3"
 webbrowser = "1.0.4"
 url = "2.5.0"
 percent-encoding = "2.3.1"
 log = "0.4"
 env_logger = "0.10"
 dotenv = "0.15"
-temp-env = "0.3.6"
 chrono = { version = "0.4", features = ["serde"] }
-
-[dev-dependencies]
-temp-env = "0.3.6"
-
-[[bin]]
-name = "main_sample"
-path = "src/main_sample.rs"
