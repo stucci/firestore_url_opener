@@ -6,6 +6,7 @@ use webbrowser;
 use log::{info, error};
 use chrono::prelude::*;
 use percent_encoding::percent_decode_str;
+use chrono::Duration;
 
 #[derive(Debug, Clone, Deserialize, Serialize)]
 struct SharedUrl {
@@ -14,6 +15,8 @@ struct SharedUrl {
     url: String,
     #[serde(with = "firestore::serialize_as_timestamp")]
     timestamp: DateTime<Utc>,
+    #[serde(with = "firestore::serialize_as_optional_timestamp", default)]
+    expired_at: Option<DateTime<Utc>>,
 }
 
 const TARGET_ID: FirestoreListenerTarget = FirestoreListenerTarget::new(42u32);
@@ -42,10 +45,46 @@ fn handle_url(url: &str) {
     }
 }
 
-fn handle_document_change(doc: &FirestoreDocument) {
+async fn handle_document_change(db: &FirestoreDb, doc: &FirestoreDocument) {
     if let Ok(shared_url) = FirestoreDb::deserialize_doc_to::<SharedUrl>(doc) {
         info!("Received new URL: {}", shared_url.url);
         handle_url(&shared_url.url);
+
+        // Calculate expired_at timestamp
+        let expired_at = Utc::now() + Duration::days(3);
+
+        // Create a struct for the update operation to properly handle timestamps
+        #[derive(Debug, Clone, Deserialize, Serialize)]
+        struct SharedUrlUpdate {
+            url: String,
+            #[serde(with = "firestore::serialize_as_timestamp")]
+            timestamp: DateTime<Utc>,
+            #[serde(with = "firestore::serialize_as_timestamp")]
+            expired_at: DateTime<Utc>,
+        }
+
+        let update_data = SharedUrlUpdate {
+            url: shared_url.url.clone(),
+            timestamp: shared_url.timestamp,
+            expired_at: expired_at,
+        };
+
+        // Update the document with all necessary fields
+        if let Some(doc_id) = &shared_url.doc_id {
+            let update_result = db
+                .fluent()
+                .update()
+                .in_col("shared_urls")
+                .document_id(doc_id)
+                .object(&update_data)
+                .execute::<SharedUrl>()
+                .await;
+
+            match update_result {
+                Ok(_) => info!("Document updated with expired_at"),
+                Err(e) => error!("Failed to update document with expired_at: {}", e),
+            }
+        }
     }
 }
 
@@ -76,18 +115,24 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Start the listener with a callback
     listener
-        .start(|event| async move {
-            match event {
-                FirestoreListenEvent::DocumentChange(doc_change) => {
-                    if let Some(doc) = &doc_change.document {
-                        handle_document_change(doc);
+        .start(move |event| {
+            let db = db.clone();  // Clone db to move it into the closure
+            async move {
+                match event {
+                    FirestoreListenEvent::DocumentChange(doc_change) => {
+                        if let Some(doc) = &doc_change.document {
+                            // Check if 'expired_at' field is already present
+                            if !doc.fields.contains_key("expired_at") {
+                                handle_document_change(&db, doc).await;
+                            }
+                        }
+                    }
+                    _ => {
+                        info!("Received other event: {:?}", event);
                     }
                 }
-                _ => {
-                    info!("Received other event: {:?}", event);
-                }
+                Ok(())
             }
-            Ok(())
         })
         .await?;
 
