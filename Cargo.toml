@@ -1,5 +1,5 @@
 [package]
-name = "firestore_listener"
+name = "firestore_url_opener"
 version = "0.1.0"
 edition = "2024"
 
